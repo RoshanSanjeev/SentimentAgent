@@ -2,11 +2,16 @@ from transformers import pipeline
 from fastapi import FastAPI, Request
 import uvicorn
 
-from uagents import Agent, Context, Bureau
+from uagents import Agent, Context, Bureau, Model
 
-# Load emotion detection model
+# Define input model for uAgents
+class TextInput(Model):
+    text: str
+
+# Load Hugging Face emotion classification model
 emotion_model = pipeline("text-classification", model="bhadresh-savani/distilbert-base-uncased-emotion")
 
+# Custom analysis logic
 def analyze_text_metrics(text):
     results = emotion_model(text)
     text_lower = text.lower()
@@ -45,15 +50,15 @@ def analyze_text_metrics(text):
 
     return metrics
 
-# Define uAgent
+# Set up the uAgent
 agent = Agent(name="sentiment_agent")
 
-@agent.on_message()
-async def handle_message(ctx: Context, sender: str, msg: str):
-    metrics = analyze_text_metrics(msg)
+@agent.on_message(model=TextInput)
+async def handle_message(ctx: Context, sender: str, msg: TextInput):
+    metrics = analyze_text_metrics(msg.text)
     await ctx.send(sender, str(metrics))
 
-# FastAPI wrapper
+# FastAPI endpoint
 app = FastAPI()
 
 @app.post("/")
@@ -63,7 +68,7 @@ async def analyze_text(request: Request):
     result = analyze_text_metrics(text)
     return result
 
-# Run both FastAPI and agent
+# Start both agent and FastAPI
 if __name__ == "__main__":
     bureau = Bureau()
     bureau.add(agent)
